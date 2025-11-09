@@ -139,6 +139,7 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
         return;
       }
 
+      // Roll two dice (Monopoly-style)
       const dice1 = Math.floor(Math.random() * 6) + 1;
       const dice2 = Math.floor(Math.random() * 6) + 1;
       const total = dice1 + dice2;
@@ -149,10 +150,11 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
         return;
       }
 
-      // Move player
+      const oldPosition = player.position;
       const newPosition = (player.position + total) % 40;
       const passedGo = player.position + total >= 40;
 
+      // Update player position
       player.position = newPosition;
       if (passedGo) {
         player.money += 200; // Pass Go, collect $200
@@ -164,6 +166,7 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
         updateGame(gameId, game);
       }
 
+      // Emit dice roll event
       io.to(gameId).emit('dice-rolled', {
         playerId,
         dice: [dice1, dice2],
@@ -172,9 +175,27 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
         passedGo,
       });
 
+      // Emit movement event first (for animation)
+      io.to(gameId).emit('codeopoly:playerMoved', {
+        playerId,
+        from: oldPosition,
+        to: newPosition,
+        diceRoll: total,
+        passedGo,
+        money: player.money, // Include updated money with alias
+        cash: player.money,  // Backward compatibility alias
+      });
+
       // Check what space player landed on
-      const property = game.boardState.find(p => p.position === newPosition);
+      const property = game.boardState.find((p: any) => p.position === newPosition);
       if (property) {
+        // Emit landing event after movement
+        io.to(gameId).emit('codeopoly:landed', {
+          playerId,
+          position: newPosition,
+          property,
+        });
+
         // Handle Debugging Card System (Chance/Community Chest)
         if (property.specialType === 'chance') {
           const card = getRandomChanceCard();
@@ -429,7 +450,7 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
 
       const property = game.boardState.find((p: any) => p.id === propertyId);
       const player = game.players.find((p: any) => p.id === playerId);
-      const owner = game.players.find((p: any) => p.id === property.ownerId);
+      const owner = game.players.find((p: any) => p.id === property?.ownerId);
 
       if (!property || !player || !owner) {
         socket.emit('error', { message: 'Invalid property or player' });
@@ -439,6 +460,18 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       const rent = calculateRent(property);
       player.money -= rent;
       owner.money += rent;
+
+      // Check for bankruptcy - clamp money to 0 and mark inactive
+      if (player.money <= 0) {
+        player.money = 0;
+        player.isActive = false;
+        console.log(`🚫 ${player.name} is BANKRUPT after paying rent!`);
+        
+        io.to(gameId).emit('player-bankrupt', {
+          playerId,
+          playerName: player.name,
+        });
+      }
 
       if (useMongoDB()) {
         await game.save();
@@ -451,16 +484,13 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
         ownerId: owner.id,
         propertyId,
         amount: rent,
+        playerMoney: player.money,
+        ownerMoney: owner.money,
       });
 
       // Automatically end turn after paying rent
       await endPlayerTurn(game, gameId, io);
       console.log(`💸 Rent paid by ${player.name}, ending turn...`);
-      try {
-        await endPlayerTurn(game, gameId, io);
-      } catch (turnError) {
-        console.error('Error ending turn after rent payment:', turnError);
-      }
     } catch (error) {
       console.error('Error paying rent:', error);
       socket.emit('error', { message: 'Failed to pay rent' });
@@ -625,29 +655,22 @@ function applyCardEffect(game: any, player: any, card: DebuggingCard, io: Server
 
 function calculateRent(property: any): number {
   const baseRent = property.rent || 0;
-  const numSolutions = property.houses || 0;
+  const numHouses = property.houses || 0;
 
-  // Determine difficulty multiplier based on property price/category
-  let difficultyMultiplier = 1.0; // Easy (default)
-  if (property.price > 200) {
-    difficultyMultiplier = 2.0; // Hard
-  } else if (property.price > 100) {
-    difficultyMultiplier = 1.5; // Medium
-  }
-
-  // Dynamic rent formula: Base Rent × (1 + (Number of Solutions × Difficulty Multiplier))
-  const rent = baseRent * (1 + (numSolutions * difficultyMultiplier));
-
-  // Fallback to original calculation if houses array exists
-  if (property.rentWithHouse && property.rentWithHouse.length > 0) {
-    if (numSolutions === 0) {
+  // Use structured rent fields with precedence: rentWithHouse array > rentWithHotel > price-based fallback
+  if (Array.isArray(property.rentWithHouse) && property.rentWithHouse.length > 0) {
+    if (numHouses === 0) {
       return baseRent;
-    } else if (numSolutions >= 4) {
-      return property.rentWithHotel || rent;
-    } else {
-      return property.rentWithHouse[numSolutions - 1] || rent;
+    } else if (numHouses >= 5) {
+      // Hotel (5th house)
+      return property.rentWithHotel || baseRent;
+    } else if (numHouses >= 1 && numHouses <= 4) {
+      // Houses 1-4: use array index (numHouses - 1)
+      return property.rentWithHouse[numHouses - 1] || baseRent;
     }
   }
 
-  return Math.round(rent);
+  // Fallback: price-based percentage (20% of property price)
+  const fallbackRent = property.price ? Math.round(property.price * 0.2) : baseRent;
+  return fallbackRent;
 }
