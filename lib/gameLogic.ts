@@ -1,3 +1,7 @@
+// Re-export unified types for easier imports
+export * from './types/gameLogic';
+export * from './constants';
+
 import { GameState, Player, Property, CodeDuel, Problem } from '@/types/game';
 import { 
   Player as UnifiedPlayer, 
