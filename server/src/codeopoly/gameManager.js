@@ -5,6 +5,7 @@
 
 import GameEngine from './gameEngine.js';
 import { TILE_TYPES } from './tiles.js';
+import { calculateRentServer, getChallengeRewardServer, resolveBankruptcyServer } from './gameLogicAdapter.js';
 
 class CodeopolyGameManager {
   constructor() {
@@ -145,13 +146,13 @@ class CodeopolyGameManager {
           
         case 'challenge':
           // This should trigger a coding challenge modal
+          const reward = getChallengeRewardServer(property.difficulty);
           return {
             success: true,
             type: 'challengeStarted',
             propertyId: property.id,
             difficulty: property.difficulty,
-            reward: property.difficulty === 'easy' ? 200 : 
-                   property.difficulty === 'medium' ? 400 : 700,
+            reward: reward,
             message: `${player.name} is attempting the coding challenge!`
           };
           
@@ -165,7 +166,7 @@ class CodeopolyGameManager {
     } else if (property.owner !== player.id) {
       // Pay rent
       const owner = game.players.find(p => p.id === property.owner);
-      const rent = Math.floor(property.price * 0.2);
+      const rent = calculateRentServer(property);
       
       if (player.cash >= rent) {
         player.cash -= rent;
@@ -182,15 +183,16 @@ class CodeopolyGameManager {
           message: `${player.name} paid $${rent} rent to ${owner.name}!`
         };
       } else {
-        // Player goes bankrupt
-        player.active = false;
-        player.cash = 0;
+        // Player goes bankrupt - use unified bankruptcy logic
+        const result = resolveBankruptcyServer(player, owner, game.board);
         
         return {
           success: true,
           type: 'bankruptcy',
           playerId: player.id,
-          message: `${player.name} went bankrupt!`
+          creditorId: owner.id,
+          transferredProperties: result.transferredProperties,
+          message: `${player.name} went bankrupt! Properties transferred to ${owner.name}.`
         };
       }
     } else {
@@ -217,8 +219,7 @@ class CodeopolyGameManager {
     const success = Math.random() < (successRates[property.difficulty] || 0.5);
     
     if (success) {
-      const reward = property.difficulty === 'easy' ? 200 : 
-                    property.difficulty === 'medium' ? 400 : 700;
+      const reward = getChallengeRewardServer(property.difficulty);
       
       property.owner = player.id;
       player.properties.push(property.id);

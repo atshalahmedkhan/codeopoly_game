@@ -623,31 +623,28 @@ function applyCardEffect(game: any, player: any, card: DebuggingCard, io: Server
   }
 }
 
+/**
+ * Calculate rent using unified logic
+ * This is the single source of truth for rent calculation
+ */
 function calculateRent(property: any): number {
-  const baseRent = property.rent || 0;
+  // Railroads and utilities have special rent logic
+  if (property.isRailroad || property.isUtility) {
+    return property.rent || 0;
+  }
+
+  // Standard properties
   const numSolutions = property.houses || 0;
-
-  // Determine difficulty multiplier based on property price/category
-  let difficultyMultiplier = 1.0; // Easy (default)
-  if (property.price > 200) {
-    difficultyMultiplier = 2.0; // Hard
-  } else if (property.price > 100) {
-    difficultyMultiplier = 1.5; // Medium
+  
+  if (numSolutions === 0) {
+    return property.rent || 0;
+  } else if (numSolutions >= 4) {
+    // 4 houses = hotel
+    return property.rentWithHotel || property.rent || 0;
+  } else {
+    // Linear interpolation for houses 1-3
+    const houseRent = property.rentWithHouse || property.rent || 0;
+    const baseRent = property.rent || 0;
+    return Math.round(baseRent + (houseRent - baseRent) * (numSolutions / 4));
   }
-
-  // Dynamic rent formula: Base Rent × (1 + (Number of Solutions × Difficulty Multiplier))
-  const rent = baseRent * (1 + (numSolutions * difficultyMultiplier));
-
-  // Fallback to original calculation if houses array exists
-  if (property.rentWithHouse && property.rentWithHouse.length > 0) {
-    if (numSolutions === 0) {
-      return baseRent;
-    } else if (numSolutions >= 4) {
-      return property.rentWithHotel || rent;
-    } else {
-      return property.rentWithHouse[numSolutions - 1] || rent;
-    }
-  }
-
-  return Math.round(rent);
 }

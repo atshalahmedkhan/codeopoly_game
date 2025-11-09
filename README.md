@@ -2,6 +2,13 @@
 
 A Monopoly-inspired coding game that combines property trading with LeetCode-style challenges. Built with React, TypeScript, Node.js, and Socket.IO.
 
+## 📚 Documentation
+
+- **[Unified Game Rules](./UNIFIED_GAME_RULES.md)** - Comprehensive game mechanics documentation
+- **[Changelog](./CHANGELOG.md)** - Recent updates and consolidation changes
+- **[Quick Start Guide](./QUICK_START.md)** - Get up and running quickly
+- **[Implementation Status](./IMPLEMENTATION_COMPLETE.md)** - Feature completion status
+
 ## 🎯 Features
 
 - **Real-time Multiplayer**: Play with 2-4 players using Socket.IO
@@ -73,7 +80,7 @@ A Monopoly-inspired coding game that combines property trading with LeetCode-sty
    - Roll dice to move around the board
    - Land on properties to:
      - **Buy** with cash 💰
-     - **Solve** coding challenges 🧠 (free property + bonus)
+     - **Solve** coding challenges 🧠 (earn property + bonus reward)
      - **Skip** to save money
    - Special tiles trigger events:
      - **Code Duel**: Challenge another player (+$1000/-$300)
@@ -85,6 +92,38 @@ A Monopoly-inspired coding game that combines property trading with LeetCode-sty
    - Game ends after 5 rounds
    - Winner = highest net worth (cash + properties + challenges)
    - Special awards: Best Coder, Tech Mogul, Top Investor
+
+## 🎲 Game Mechanics
+
+### Rent Calculation
+Rent scales with property improvements using **linear interpolation**:
+- **No houses**: Base rent (e.g., $10)
+- **1-3 houses**: Interpolated between base and house rent
+- **4+ houses (hotel)**: Maximum rent (e.g., $200)
+
+Example: Base $10, House $50, Hotel $200
+- 0 houses → $10
+- 1 house → $20
+- 2 houses → $30
+- 3 houses → $40
+- 4+ houses → $200
+
+### Challenge Rewards
+Solve coding challenges to earn properties AND cash bonuses:
+- **Easy**: $200 bonus
+- **Medium**: $400 bonus
+- **Hard**: $700 bonus
+
+### Bankruptcy
+When you can't pay rent:
+- **With creditor**: All properties transfer to the creditor
+- **Without creditor**: Properties return to the bank (houses removed)
+- Player eliminated from game
+
+### Passing GO
+- Collect **$200** every time you pass or land on GO
+
+See **[UNIFIED_GAME_RULES.md](./UNIFIED_GAME_RULES.md)** for complete mechanics documentation.
 
 ## 🏗️ Architecture
 

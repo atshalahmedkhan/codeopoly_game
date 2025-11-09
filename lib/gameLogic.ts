@@ -1,4 +1,24 @@
+// Re-export unified types for easier imports
+export * from './types/gameLogic';
+export * from './constants';
+
 import { GameState, Player, Property, CodeDuel, Problem } from '@/types/game';
+import { 
+  Player as UnifiedPlayer, 
+  Property as UnifiedProperty, 
+  GameState as UnifiedGameState,
+  BankruptcyResult,
+  TurnResult,
+  PropertyActionResult
+} from './types/gameLogic';
+import { 
+  PASS_GO_REWARD, 
+  DIFFICULTY_REWARDS, 
+  MAX_HOUSES,
+  BANKRUPTCY_TRANSFER_TO_CREDITOR,
+  DEFAULT_RENT_PERCENTAGE,
+  Difficulty
+} from './constants';
 import { getRandomProblem } from './problems';
 
 export function rollDice(): [number, number] {
@@ -17,7 +37,7 @@ export function movePlayer(player: Player, diceRoll: [number, number], boardSize
     return {
       ...player,
       position: newPosition,
-      money: player.money + 200, // Pass Go, collect $200
+      money: player.money + PASS_GO_REWARD, // Pass Go, collect $200
     };
   }
   
@@ -27,10 +47,22 @@ export function movePlayer(player: Player, diceRoll: [number, number], boardSize
   };
 }
 
-export function calculateRent(property: Property): number {
+/**
+ * Unified rent calculation supporting houses and hotels
+ * Uses rent fields from property definition with linear scaling for houses
+ * This is the single source of truth for rent calculation
+ */
+export function calculateRent(property: Property | UnifiedProperty): number {
+  // Railroads and utilities have special rent logic
+  if (property.isRailroad || property.isUtility) {
+    return property.rent;
+  }
+
+  // Standard properties
   if (property.houses === 0) {
     return property.rent;
-  } else if (property.houses === 4) {
+  } else if (property.houses >= 4) {
+    // 4 houses = hotel
     return property.rentWithHotel;
   } else {
     // Linear interpolation for houses 1-3
@@ -164,7 +196,7 @@ export function calculateNetWorth(player: Player, properties: Property[]): numbe
 
 export function canUpgradeProperty(player: Player, property: Property): boolean {
   if (property.ownerId !== player.id) return false;
-  if (property.houses >= 4) return false; // Already has hotel
+  if (property.houses >= MAX_HOUSES) return false; // Already has hotel
   if (player.money < property.houseCost) return false;
   return true;
 }
@@ -178,6 +210,180 @@ export function upgradeProperty(player: Player, property: Property): { player: P
     property: {
       ...property,
       houses: property.houses + 1,
+    },
+  };
+}
+
+/**
+ * Resolve bankruptcy - unified handling for client and server
+ * Transfers properties to creditor if exists, otherwise resets to bank
+ */
+export function resolveBankruptcy(
+  bankruptPlayer: Player | UnifiedPlayer, 
+  creditor: (Player | UnifiedPlayer) | null,
+  allProperties: (Property | UnifiedProperty)[]
+): BankruptcyResult {
+  const ownedPropertyIds = bankruptPlayer.properties || [];
+  const transferredProperties: string[] = [];
+
+  // Update properties based on bankruptcy transfer policy
+  for (const propId of ownedPropertyIds) {
+    const property = allProperties.find(p => p.id === propId);
+    if (property) {
+      if (BANKRUPTCY_TRANSFER_TO_CREDITOR && creditor) {
+        // Transfer to creditor
+        property.ownerId = creditor.id;
+        if (!creditor.properties) creditor.properties = [];
+        if (!creditor.properties.includes(propId)) {
+          creditor.properties.push(propId);
+        }
+      } else {
+        // Reset to bank (unowned)
+        property.ownerId = undefined;
+        property.houses = 0;
+      }
+      transferredProperties.push(propId);
+    }
+  }
+
+  // Update bankrupt player
+  const updatedBankruptPlayer = {
+    ...bankruptPlayer,
+    money: 0,
+    isActive: false,
+    properties: [],
+  };
+
+  return {
+    bankruptPlayer: updatedBankruptPlayer as Player,
+    creditor: creditor as Player | undefined,
+    transferredProperties,
+  };
+}
+
+/**
+ * Advance turn to next active player
+ * Handles skip flags, bankrupt players, and round tracking
+ */
+export function advanceTurn(
+  players: (Player | UnifiedPlayer)[],
+  currentPlayerId: string,
+  currentRound: number = 0
+): TurnResult {
+  const skippedPlayers: string[] = [];
+  let roundIncremented = false;
+  
+  const currentIndex = players.findIndex(p => p.id === currentPlayerId);
+  if (currentIndex === -1) {
+    throw new Error('Current player not found');
+  }
+
+  // Filter active players
+  const activePlayers = players.filter(p => p.isActive !== false);
+  if (activePlayers.length === 0) {
+    throw new Error('No active players');
+  }
+
+  let nextIndex = (currentIndex + 1) % players.length;
+  let attempts = 0;
+  const maxAttempts = players.length;
+
+  // Find next active player who is not skipping
+  while (attempts < maxAttempts) {
+    const nextPlayer = players[nextIndex];
+    
+    // Check if we wrapped around (new round)
+    if (nextIndex <= currentIndex && attempts > 0) {
+      roundIncremented = true;
+    }
+
+    // Check if player is active
+    if (nextPlayer.isActive === false) {
+      nextIndex = (nextIndex + 1) % players.length;
+      attempts++;
+      continue;
+    }
+
+    // Check if player should skip
+    if (nextPlayer.skipNextTurn) {
+      skippedPlayers.push(nextPlayer.id);
+      nextPlayer.skipNextTurn = false;
+      nextIndex = (nextIndex + 1) % players.length;
+      attempts++;
+      continue;
+    }
+
+    // Found next valid player
+    return {
+      nextPlayerId: nextPlayer.id,
+      skippedPlayers,
+      roundIncremented,
+    };
+  }
+
+  // Fallback to first active player if we couldn't find anyone
+  const firstActive = activePlayers[0];
+  return {
+    nextPlayerId: firstActive.id,
+    skippedPlayers,
+    roundIncremented: true,
+  };
+}
+
+/**
+ * Get challenge reward based on difficulty
+ */
+export function getChallengeReward(difficulty: Difficulty | string): number {
+  const diffKey = difficulty as Difficulty;
+  return DIFFICULTY_REWARDS[diffKey] || DIFFICULTY_REWARDS.medium;
+}
+
+/**
+ * Perform property landing action - determines what actions are available
+ * This is called when a player lands on a property tile
+ */
+export function performPropertyLanding(
+  player: Player | UnifiedPlayer,
+  property: Property | UnifiedProperty,
+  owner?: Player | UnifiedPlayer
+): PropertyActionResult {
+  // Unowned property - can buy or challenge
+  if (!property.ownerId) {
+    if (player.money >= property.price) {
+      return {
+        action: 'buy',
+        success: true,
+        message: `${player.name} can buy ${property.name} for $${property.price}`,
+      };
+    } else {
+      return {
+        action: 'skip',
+        success: false,
+        message: `${player.name} cannot afford ${property.name} (costs $${property.price})`,
+      };
+    }
+  }
+
+  // Own property - no action needed
+  if (property.ownerId === player.id) {
+    return {
+      action: 'own',
+      success: true,
+      message: `${player.name} landed on their own property`,
+    };
+  }
+
+  // Must pay rent to owner
+  const rent = calculateRent(property);
+  return {
+    action: 'rent',
+    success: player.money >= rent,
+    message: player.money >= rent 
+      ? `${player.name} must pay $${rent} rent to ${owner?.name || 'owner'}`
+      : `${player.name} cannot pay $${rent} rent - BANKRUPTCY!`,
+    updates: {
+      player: { money: player.money - rent },
+      creditor: owner ? { money: (owner.money || 0) + rent } : undefined,
     },
   };
 }
