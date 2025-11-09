@@ -4,7 +4,12 @@ import GameRoom from './pages/GameRoom';
 
 function App() {
   return (
-    <Router>
+    <Router
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <Routes>
         <Route path="/" element={<Lobby />} />
         <Route path="/game/:gameId" element={<GameRoom />} />

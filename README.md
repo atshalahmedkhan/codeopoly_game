@@ -1,65 +1,217 @@
-# CodeOpoly 🎮💻
+# CodeOpoly 🎮
 
-**Competitive Coding Meets Monopoly**
+A Monopoly-inspired coding game that combines property trading with LeetCode-style challenges. Built with React, TypeScript, Node.js, and Socket.IO.
 
-A multiplayer game that combines the classic Monopoly board game with LeetCode-style coding challenges. Solve problems faster to earn Compute Credits, buy properties, and dominate the board!
+## 🎯 Features
 
-## 🚀 Features
+- **Real-time Multiplayer**: Play with 2-4 players using Socket.IO
+- **Coding Challenges**: Solve LeetCode problems to earn properties
+- **Property Trading**: Buy, sell, and collect rent on coding-themed properties
+- **Special Events**: Code Duels, Hackathons, System Crashes, and Code Reviews
+- **Modern UI**: Beautiful dark theme with glassmorphism effects and animations
+- **5 Round Gameplay**: Strategic gameplay with automatic scoring
 
-### Core Mechanics
-- **Roll Dice → Solve Problem → Buy Property**: Classic Monopoly gameplay with a coding twist
-- **Code Duels**: Challenge property owners to avoid paying rent
-- **Property Types = Problem Types**: Different properties require different coding skills
-- **Debug Hell (Jail)**: Fix buggy code to get out of jail
-- **Community Chest & Chance**: Live coding events and modifiers
+## 🚀 Quick Start
 
-### Revolutionary Additions
-- 🎯 **Code or Pay Rent**: Challenge opponents to code duels
-- 🏠 **Property Upgrades**: Build servers (houses) and data centers (hotels)
-- 🎲 **Live Events**: Code sprints, chaos mode, and more
-- 🐛 **Debug Challenges**: Fix intentionally broken code
-- 💰 **Compute Credits**: Earn money by solving problems faster
+### Prerequisites
 
-## 🛠️ Tech Stack
+- Node.js 18+ and npm
+- MongoDB (optional - uses in-memory storage if not available)
 
-- **Frontend**: Next.js 14, React, TypeScript
-- **Styling**: Tailwind CSS
-- **Code Editor**: Monaco Editor
-- **Real-time**: Firebase Firestore
-- **Animations**: Framer Motion
+### Installation
 
-## 📦 Installation
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url>
+   cd UB_Hacking
+   ```
 
-```bash
-npm install
-```
+2. **Install dependencies**
+   ```bash
+   # Install server dependencies
+   cd server
+   npm install
+   
+   # Install client dependencies
+   cd ../client
+   npm install
+   ```
 
-## 🚀 Development
+3. **Configure environment variables**
+   
+   Create `.env` files if needed:
+   - `server/.env` - MongoDB URI (optional)
+   - `client/.env` - API URL (defaults to localhost:3001)
 
-```bash
-npm run dev
-```
+4. **Start the servers**
+   
+   ```bash
+   # Terminal 1 - Start backend server
+   cd server
+   npm run dev
+   
+   # Terminal 2 - Start frontend client
+   cd client
+   npm run dev
+   ```
 
-Open [http://localhost:3000](http://localhost:3000) to see the game.
+5. **Open your browser**
+   - Frontend: http://localhost:3000
+   - Backend: http://localhost:3001
 
 ## 🎮 How to Play
 
-1. Create or join a game room
-2. Roll the dice to move around the board
-3. When you land on a property:
-   - If unowned: Solve a problem to buy it
-   - If owned: Pay rent or challenge to a code duel
-4. Solve problems faster to earn more Compute Credits
-5. Build servers and data centers to increase rent
-6. Win by having the most net worth or bankrupting opponents
+1. **Create or Join a Room**
+   - Click "Create Room" to start a new game
+   - Or enter a 4-letter room code to join an existing game
 
-## 🎯 Game Modes
+2. **Wait for Players**
+   - Need at least 2 players to start
+   - Share your room code with friends
 
-- **Classic Mode**: Standard Monopoly rules with coding challenges
-- **Code Duel Mode**: Every rent payment can become a challenge
-- **Debug Hell**: Enhanced jail mechanics with bug fixing
+3. **Play the Game**
+   - Roll dice to move around the board
+   - Land on properties to:
+     - **Buy** with cash 💰
+     - **Solve** coding challenges 🧠 (free property + bonus)
+     - **Skip** to save money
+   - Special tiles trigger events:
+     - **Code Duel**: Challenge another player (+$1000/-$300)
+     - **Hackathon**: Team competition
+     - **System Crash**: Skip next turn
+     - **Code Review**: Random bonus/penalty
 
-## 📝 License
+4. **Win Conditions**
+   - Game ends after 5 rounds
+   - Winner = highest net worth (cash + properties + challenges)
+   - Special awards: Best Coder, Tech Mogul, Top Investor
 
-MIT
+## 🏗️ Architecture
 
+### Frontend (`client/`)
+- **React + TypeScript**: Modern UI framework
+- **Socket.IO Client**: Real-time communication
+- **Framer Motion**: Smooth animations
+- **Tailwind CSS**: Styling
+- **Monaco Editor**: Code challenge interface
+
+### Backend (`server/`)
+- **Node.js + Express**: REST API
+- **Socket.IO**: WebSocket server
+- **MongoDB**: Game state persistence (optional)
+- **CodeOpoly Engine**: Complete game logic
+
+### Key Components
+
+- `GameRoom.tsx` - Main game interface
+- `EnhancedMonopolyBoard.tsx` - 3D game board
+- `CodeDuelModal.tsx` - Coding challenge interface
+- `gameEngine.js` - Core game logic
+- `gameManager.js` - Socket.IO integration
+
+## 📁 Project Structure
+
+```
+UB_Hacking/
+├── client/                 # React frontend
+│   ├── src/
+│   │   ├── components/    # UI components
+│   │   ├── pages/         # Page components
+│   │   ├── styles/        # CSS files
+│   │   └── ...
+│   └── package.json
+├── server/                 # Node.js backend
+│   ├── src/
+│   │   ├── codeopoly/     # Game engine
+│   │   ├── socket/        # Socket handlers
+│   │   ├── routes/        # API routes
+│   │   └── ...
+│   └── package.json
+└── README.md
+```
+
+## 🎨 Features in Detail
+
+### Property System
+- Properties have prices ($100-$500)
+- Pay 20% rent when landing on owned properties
+- Solve challenges for free ownership + cash bonus
+
+### Challenge System
+- **Easy**: 70% success rate, +$200 reward
+- **Medium**: 50% success rate, +$400 reward
+- **Hard**: 30% success rate, +$700 reward
+- Failure: -$100 penalty
+
+### Special Events
+- **Code Duel**: 1v1 coding competition
+- **Hackathon**: Team-based challenges
+- **System Crash**: Skip next turn penalty
+- **Code Review**: Random positive/negative events
+
+## 🛠️ Development
+
+### Running Tests
+```bash
+# Server tests
+cd server
+npm test
+
+# Client tests
+cd client
+npm test
+```
+
+### Building for Production
+```bash
+# Build client
+cd client
+npm run build
+
+# Build server
+cd server
+npm run build
+```
+
+## 📝 Environment Variables
+
+### Server
+- `MONGODB_URI` - MongoDB connection string (optional)
+- `PORT` - Server port (default: 3001)
+- `CLIENT_URL` - Allowed CORS origins
+
+### Client
+- `VITE_SERVER_URL` - Backend API URL (default: http://localhost:3001)
+- `VITE_FIREBASE_API_KEY` - Firebase API key (optional)
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+## 🙏 Acknowledgments
+
+- Inspired by Monopoly
+- LeetCode for coding challenges
+- React and Socket.IO communities
+
+## 🐛 Known Issues
+
+- Firebase authentication is optional (works without it)
+- Room codes are 4 uppercase letters
+- Game requires 2+ players to start
+
+## 📞 Support
+
+For issues and questions, please open an issue on GitHub.
+
+---
+
+**Built with ❤️ for coding enthusiasts**

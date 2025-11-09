@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import AnimatedPropertyCard from './AnimatedPropertyCard';
+import { motion } from 'framer-motion';
 import AnimatedPlayerToken from './AnimatedPlayerToken';
 import { soundManager } from '../lib/soundEffects';
 
@@ -30,12 +29,20 @@ interface Player {
   color?: string;
 }
 
+interface GameEvent {
+  type: 'info' | 'dice' | 'purchase' | 'rent' | 'duel' | 'special' | 'upgrade' | 'bankrupt' | 'land';
+  message: string;
+  player?: string;
+  timestamp?: number;
+}
+
 interface EnhancedMonopolyBoardProps {
   boardState: Property[];
   players: Player[];
   currentPlayer: Player | null;
   onTileClick: (property: Property) => void;
   landedPosition?: number;
+  gameEvents?: GameEvent[];
 }
 
 export default function EnhancedMonopolyBoard({
@@ -44,6 +51,7 @@ export default function EnhancedMonopolyBoard({
   currentPlayer,
   onTileClick,
   landedPosition,
+  gameEvents,
 }: EnhancedMonopolyBoardProps) {
   const [hoveredProperty, setHoveredProperty] = useState<number | null>(null);
   const [glowingTile, setGlowingTile] = useState<number | null>(landedPosition || null);
@@ -276,7 +284,7 @@ export default function EnhancedMonopolyBoard({
     );
   };
 
-  const renderProperty = (property: Property, orientation: 'horizontal' | 'vertical', isTop: boolean = false) => {
+const renderProperty = (property: Property, orientation: 'horizontal' | 'vertical', isTop: boolean = false) => {
     const playersHere = getPlayersOnSpace(property.position);
     const isOwned = !!property.ownerId;
     const owner = players.find(p => p.id === property.ownerId);
@@ -287,7 +295,13 @@ export default function EnhancedMonopolyBoard({
       return (
         <motion.div
           key={property.id}
-          className="w-24 h-32 bg-gradient-to-br from-gray-800 to-gray-900 border-2 border-cyan-500/50 rounded-lg flex flex-col items-center justify-center hover:border-cyan-400 transition-all group cursor-pointer"
+          className="relative bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-cyan-500/50 rounded-lg flex flex-col items-center justify-center hover:border-cyan-400 transition-all group cursor-pointer overflow-hidden"
+          style={{
+            width: orientation === 'horizontal' ? '100px' : '100%',
+            height: orientation === 'vertical' ? '100px' : '100%',
+            minWidth: '100px',
+            minHeight: '100px',
+          }}
           onMouseEnter={() => {
             setHoveredProperty(property.position);
             soundManager.playPropertyLanding();
@@ -295,65 +309,139 @@ export default function EnhancedMonopolyBoard({
           onMouseLeave={() => setHoveredProperty(null)}
           onClick={() => onTileClick(property)}
         >
-          <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">⚡</span>
-          <div className="text-cyan-300 text-sm font-semibold text-center px-2" style={{ fontSize: 'clamp(11px, 1.4vmin, 16px)' }}>{property.name}</div>
+          <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">
+            {property.specialType === 'chance' ? '❓' : '📦'}
+          </span>
+          <div className="text-cyan-300 text-xs font-bold text-center px-2" 
+               style={{ 
+                 fontSize: 'clamp(10px, 1.2vw, 14px)',
+                 textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+               }}>
+            {property.name}
+          </div>
         </motion.div>
       );
     }
     
+    // CRITICAL FIX: Readable text orientation for all sides
+    const getCardTransform = (orientation: string, isTop: boolean) => {
+      if (orientation === 'vertical') {
+        return 'rotate(90deg)'; // Card rotates 90°, text will be adjusted inside
+      } else if (isTop) {
+        return 'rotate(180deg)'; // Card rotates 180°, text will be adjusted inside
+      } else {
+        return 'rotate(0deg)'; // Bottom row: normal orientation
+      }
+    };
+
     // CRITICAL FIX: Standard card sizes per design spec
-    // Regular properties: 112px x 144px (w-28 h-36)
-    const cardSize = orientation === 'horizontal' 
-      ? 'h-36 min-h-[144px] w-28 min-w-[112px]' // 112px x 144px per spec
-      : 'h-full min-h-[144px] w-28 min-w-[112px]'; // 112px width, full height
-    
+    // Regular properties: 120px x 160px (increased for readability)
+    const cardSize = orientation === 'horizontal'
+      ? 'h-40 min-h-[160px] w-30 min-w-[120px]' // 120px x 160px per spec
+      : 'h-full min-h-[160px] w-30 min-w-[120px]'; // 120px width, full height
+
     return (
       <motion.div
         key={property.id}
-        className={`cursor-pointer relative ${cardSize} bg-gray-800 border-2 rounded-lg overflow-hidden`}
+        className={`cursor-pointer relative bg-gradient-to-br from-gray-800 to-gray-900 border-2 rounded-lg overflow-hidden hover:scale-105 transition-all duration-200 ${isOwned ? 'ring-2 ring-white/50' : ''}`}
         style={{
           ...getPropertyStyle(property, property.position),
-          transform: orientation === 'vertical' ? 'rotate(90deg)' : (isTop ? 'rotate(180deg)' : 'rotate(0deg)'),
+          width: orientation === 'horizontal' ? '90px' : '100%',
+          height: orientation === 'vertical' ? '90px' : '100%',
+          minWidth: '90px',
+          minHeight: '90px',
         }}
         onMouseEnter={() => {
           setHoveredProperty(property.position);
+          soundManager.playPropertyLanding();
         }}
         onMouseLeave={() => setHoveredProperty(null)}
         onClick={() => onTileClick(property)}
       >
-        {/* Hover Tooltip - Property Info */}
+        {/* Enhanced hover tooltip - Shows property details */}
         {isHovered && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50 pointer-events-none"
+            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-4 z-[100] pointer-events-none"
+            style={{ filter: 'drop-shadow(0 10px 40px rgba(0,0,0,0.8))' }}
           >
-            <div className="bg-slate-900/95 backdrop-blur-lg rounded-lg p-3 border-2 border-emerald-400 shadow-2xl min-w-[200px]">
-              <div className="text-sm font-bold text-white mb-2">{property.name}</div>
-              {!property.isSpecial && (
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Price:</span>
-                    <span className="text-yellow-300 font-mono font-bold">${property.price}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Rent:</span>
-                    <span className="text-emerald-300 font-mono font-bold">${property.rent}</span>
-                  </div>
-                  {isOwned && owner && (
-                    <div className="flex justify-between pt-1 border-t border-slate-700">
-                      <span className="text-slate-400">Owner:</span>
-                      <span className="text-white font-semibold">{owner.name}</span>
-                    </div>
-                  )}
-                  {property.houses > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Houses:</span>
-                      <span className="text-green-300 font-mono">{property.houses}</span>
-                    </div>
-                  )}
+            <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 backdrop-blur-xl rounded-xl p-5 border-2 border-cyan-400 shadow-2xl min-w-[280px] max-w-[320px]"
+                 style={{
+                   boxShadow: '0 0 40px rgba(0, 212, 255, 0.4), inset 0 0 20px rgba(0, 212, 255, 0.1)',
+                 }}>
+              {/* Property Header */}
+              <div className="mb-3 pb-3 border-b border-cyan-400/30">
+                <div className="text-xl font-black text-white mb-1" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
+                  {property.name}
                 </div>
-              )}
+                <div className="h-2 rounded-full" style={{ backgroundColor: property.color, boxShadow: `0 0 10px ${property.color}80` }}></div>
+              </div>
+              
+              {/* Property Details */}
+              <div className="space-y-2.5 text-sm">
+                <div className="flex justify-between items-center bg-slate-800/50 rounded-lg px-3 py-2">
+                  <span className="text-slate-300 font-medium">Purchase Price:</span>
+                  <span className="text-yellow-300 font-mono font-black text-base">${property.price.toLocaleString()}</span>
+                </div>
+                
+                <div className="flex justify-between items-center bg-slate-800/50 rounded-lg px-3 py-2">
+                  <span className="text-slate-300 font-medium">Base Rent:</span>
+                  <span className="text-emerald-300 font-mono font-black text-base">${property.rent.toLocaleString()}</span>
+                </div>
+                
+                {property.rentWithHouse && property.rentWithHouse.length > 0 && (
+                  <div className="bg-slate-800/50 rounded-lg px-3 py-2">
+                    <div className="text-slate-300 font-medium mb-1.5">Rent with Houses:</div>
+                    <div className="grid grid-cols-2 gap-1.5 text-xs">
+                      {property.rentWithHouse.slice(0, 4).map((rent, idx) => (
+                        <div key={idx} className="flex justify-between">
+                          <span className="text-slate-400">{idx + 1} House:</span>
+                          <span className="text-green-300 font-mono font-bold">${rent}</span>
+                        </div>
+                      ))}
+                      {property.rentWithHouse.length >= 5 && (
+                        <div className="flex justify-between col-span-2 pt-1 border-t border-slate-700">
+                          <span className="text-slate-400">Hotel:</span>
+                          <span className="text-red-300 font-mono font-bold">${property.rentWithHouse[4]}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {isOwned && owner && (
+                  <>
+                    <div className="flex justify-between items-center bg-slate-800/50 rounded-lg px-3 py-2">
+                      <span className="text-slate-300 font-medium">Owner:</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 rounded-full border-2 border-white" style={{ backgroundColor: owner.color }}></div>
+                        <span className="text-white font-bold">{owner.name}</span>
+                      </div>
+                    </div>
+                    {property.houses > 0 && (
+                      <div className="flex justify-between items-center bg-slate-800/50 rounded-lg px-3 py-2">
+                        <span className="text-slate-300 font-medium">Upgrades:</span>
+                        <span className="text-green-300 font-bold text-base">
+                          {property.houses === 5 ? '🏨 Hotel' : `🏠 ${property.houses} House${property.houses > 1 ? 's' : ''}`}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+                
+                {!isOwned && (
+                  <div className="bg-emerald-900/30 border border-emerald-500/50 rounded-lg px-3 py-2 text-center">
+                    <span className="text-emerald-300 font-bold text-sm">Available to Purchase!</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Tooltip Arrow */}
+            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+              <div className="w-4 h-4 bg-slate-900 border-r-2 border-b-2 border-cyan-400 transform rotate-45"></div>
             </div>
           </motion.div>
         )}
@@ -379,90 +467,81 @@ export default function EnhancedMonopolyBoard({
           />
         )}
         
-        {/* Color Stripe - Simple, no animations */}
-        <div
-          className="h-9 w-full absolute top-0 left-0 z-10"
-          style={{
-            backgroundColor: property.color,
-          }}
-        />
-        
-        <AnimatedPropertyCard
-          property={property}
-          owner={owner}
-          isHovered={hoveredProperty === property.position}
-          onMouseEnter={() => {}}
-          onMouseLeave={() => {}}
-          className="w-full h-full"
-          orientation={orientation}
-        />
-        
-        {/* Simple Ownership indicator */}
-        {isOwned && owner && (
-          <div
-            className="absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white bg-emerald-500 border-2 border-white"
-          >
-            {owner.name[0]}
+        {/* Property content organized for better visibility */}
+        <div className="w-full h-full flex flex-col relative">
+          {/* Color stripe at top */}
+          <div className="w-full h-5 flex-shrink-0"
+               style={{
+                 backgroundColor: property.color,
+                 boxShadow: `0 2px 4px ${property.color}80, inset 0 1px 2px rgba(255,255,255,0.3)`,
+               }}
+          />
+          
+          {/* Main content area */}
+          <div className="flex-1 p-1.5 flex flex-col justify-center items-center text-center">
+            {/* Property name - HIGHLY visible */}
+            <div className="text-white font-black mb-1"
+                 style={{
+                   fontSize: orientation === 'horizontal' ? '11px' : '10px',
+                   textShadow: '2px 2px 4px rgba(0,0,0,1), 0 0 10px rgba(0,0,0,0.9)',
+                   letterSpacing: '0.3px',
+                   lineHeight: '1.1',
+                   textTransform: 'uppercase',
+                 }}>
+              {property.name}
+            </div>
+            
+            {/* Price */}
+            <div className="text-yellow-400 font-bold"
+                 style={{
+                   fontSize: '10px',
+                   textShadow: '1px 1px 3px rgba(0,0,0,0.9)',
+                 }}>
+              ${property.price}
+            </div>
           </div>
-        )}
-        
-        {/* Enhanced Houses/Hotels */}
-        {property.houses > 0 && (
-          <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex gap-1">
-            {[...Array(Math.min(property.houses, 4))].map((_, i) => (
-              <motion.div
-                key={i}
-                className="w-3 h-3 rounded-sm relative"
-                style={{
-                  background: 'linear-gradient(135deg, #68D391 0%, #48BB78 100%)',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.3)',
-                  transform: 'perspective(100px) rotateX(-20deg)',
-                }}
-                initial={{ scale: 0, y: -10 }}
-                animate={{ scale: 1, y: 0 }}
-                transition={{ delay: i * 0.1, type: 'spring', stiffness: 500 }}
-              >
-                {/* House roof */}
-                <div
-                  className="absolute -top-1 left-1/2 transform -translate-x-1/2"
-                  style={{
-                    width: 0,
-                    height: 0,
-                    borderLeft: '3px solid transparent',
-                    borderRight: '3px solid transparent',
-                    borderBottom: '3px solid #68D391',
-                  }}
-                />
-              </motion.div>
-            ))}
-            {property.houses === 5 && (
-              <motion.div
-                className="w-4 h-4 rounded flex items-center justify-center text-[8px] font-bold text-white"
-                style={{
-                  background: 'linear-gradient(135deg, #FC8181 0%, #F56565 100%)',
-                  boxShadow: '0 2px 8px rgba(252, 129, 129, 0.6), inset 0 1px 0 rgba(255,255,255,0.3)',
-                  transform: 'perspective(100px) rotateX(-20deg)',
-                }}
-                initial={{ scale: 0, rotate: -180 }}
-                animate={{ scale: 1, rotate: 0 }}
-                transition={{ type: 'spring', stiffness: 500 }}
-              >
-                H
-              </motion.div>
-            )}
-          </div>
-        )}
 
-        {/* Player Tokens */}
+          {/* Enhanced ownership indicator */}
+          {isOwned && owner && (
+            <div className="absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white border-2 border-white shadow-lg"
+                 style={{ backgroundColor: owner.color }}>
+              {owner.name[0]}
+            </div>
+          )}
+
+          {/* Better house/hotel display */}
+          {property.houses > 0 && (
+            <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1">
+              {[...Array(Math.min(property.houses, 4))].map((_, i) => (
+                <div key={i} className="w-4 h-4 rounded-sm border border-white/50 flex items-center justify-center text-xs font-bold text-white"
+                     style={{ backgroundColor: property.color }}>
+                  🏠
+                </div>
+              ))}
+              {property.houses === 5 && (
+                <div className="w-5 h-5 rounded border border-white/50 flex items-center justify-center text-xs font-bold text-white"
+                     style={{ backgroundColor: '#dc2626' }}>
+                  🏨
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        
+        {/* Player tokens - larger and more visible */}
         {playersHere.length > 0 && (
-          <div className="absolute bottom-1 right-1 flex gap-1 flex-wrap max-w-[60%]">
+          <div className="absolute bottom-2 right-2 flex gap-1 flex-wrap">
             {playersHere.map((p, idx) => (
-              <AnimatedPlayerToken
+              <motion.div
                 key={p.id}
-                player={p}
-                isCurrentTurn={currentPlayer?.id === p.id}
-                isMoving={false}
-              />
+                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white border-2 border-white shadow-md"
+                style={{ backgroundColor: p.color }}
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: idx * 0.1 }}
+              >
+                {p.avatar || '👤'}
+              </motion.div>
             ))}
           </div>
         )}
@@ -635,16 +714,16 @@ export default function EnhancedMonopolyBoard({
             ease: 'easeInOut',
           }}
         />
-        {/* Responsive Square Board - MAXIMUM POSSIBLE SIZE */}
+        {/* Responsive Square Board */}
         <div 
           className="relative codeopoly-board-container"
           style={{
-            width: 'min(95vh, 95vw, 2000px)',
-            height: 'min(95vh, 95vw, 2000px)',
+            width: '100%',
+            height: '100%',
             aspectRatio: '1 / 1',
             margin: '0 auto',
             overflow: 'visible',
-            padding: '1.5vmin',
+            padding: '0.5rem',
           }}
         >
       {/* Board Grid Container - Perfect 11x11 Square Grid - Enlarged */}
@@ -683,44 +762,65 @@ export default function EnhancedMonopolyBoard({
           </div>
         ))}
           
-            {/* Center Area - CODEOPOLY Logo */}
-            <div 
-              className="bg-gradient-to-br from-slate-800/30 to-slate-900/30 rounded-xl backdrop-blur-sm border-2 border-cyan-500/50 flex items-center justify-center relative overflow-hidden codeopoly-logo"
+            {/* Center Area - Game State Display */}
+            <div
+              className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-xl backdrop-blur-sm border-2 border-cyan-500/30 flex flex-col items-center justify-center relative overflow-hidden"
               style={{
                 gridArea: '2 / 2 / 11 / 11',
-                boxShadow: '0 0 40px rgba(6, 182, 212, 0.3), inset 0 0 40px rgba(6, 182, 212, 0.1)',
+                boxShadow: '0 0 30px rgba(6, 182, 212, 0.2), inset 0 0 30px rgba(6, 182, 212, 0.05)',
               }}
             >
-              {/* Animated particles background */}
-              <div className="absolute inset-0 logo-particles">
-                
+              {/* Current player turn indicator - smaller */}
+              <div className="absolute top-2 left-2 right-2 bg-slate-900/80 rounded-lg p-2 border border-emerald-400/30">
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                       style={{ backgroundColor: currentPlayer?.color }}>
+                    {currentPlayer?.avatar || '👤'}
+                  </div>
+                  <div className="text-center">
+                    <div className="text-emerald-300 font-bold text-xs">CURRENT TURN</div>
+                    <div className="text-white font-semibold text-sm">{currentPlayer?.name || 'Waiting...'}</div>
+                  </div>
+                </div>
               </div>
-              
-              <div className="text-center z-10 relative">
+
+              {/* Recent game events - smaller */}
+              <div className="absolute bottom-2 left-2 right-2 bg-slate-900/80 rounded-lg p-2 border border-blue-400/30 max-h-16 overflow-y-auto">
+                <div className="text-blue-300 font-bold text-xs mb-1">RECENT EVENTS</div>
+                <div className="space-y-1">
+                  {gameEvents?.slice(0, 3).map((event, idx) => (
+                    <div key={idx} className="text-xs text-white/80 flex items-center gap-1.5">
+                      <span style={{ fontSize: '10px' }}>{event.type === 'dice' ? '🎲' : event.type === 'purchase' ? '🏦' : event.type === 'rent' ? '💸' : event.type === 'duel' ? '⚔️' : '⭐'}</span>
+                      <span className="truncate" style={{ fontSize: '10px' }}>{event.message}</span>
+                    </div>
+                  )) || []}
+                </div>
+              </div>
+
+              {/* CODEOPOLY logo and branding - optimized size */}
+              <div className="text-center z-10 relative flex flex-col items-center justify-center">
                 <motion.h1
-                  className="logo-text font-black font-mono mb-2 relative"
+                  className="logo-text font-black font-mono relative"
                   style={{
-                    fontSize: 'clamp(3rem, 10vmin, 8rem)',
+                    fontSize: 'clamp(1.5rem, 5vw, 3rem)',
                     background: 'linear-gradient(135deg, #4FD1C5 0%, #38B2AC 20%, #68D391 40%, #4FD1C5 60%, #38B2AC 80%, #68D391 100%)',
                     backgroundSize: '300% 300%',
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     backgroundClip: 'text',
                     filter: 'drop-shadow(0 4px 20px rgba(79, 209, 197, 0.6))',
-                    letterSpacing: 'clamp(2px, 1vmin, 6px)',
+                    letterSpacing: '2px',
                   }}
                 >
                   CODEOPOLY
                 </motion.h1>
-                
+
                 <motion.p
-                  className="tagline text-emerald-400 font-mono relative"
+                  className="tagline text-emerald-400 font-mono relative mt-1"
                   style={{
-                    fontSize: 'clamp(0.75rem, 2vmin, 1.25rem)',
-                    letterSpacing: 'clamp(1px, 0.5vmin, 3px)',
+                    fontSize: 'clamp(0.5rem, 1.2vw, 0.75rem)',
+                    letterSpacing: '1px',
                     fontWeight: 300,
-                    marginTop: 'clamp(4px, 1vmin, 12px)',
-                    marginBottom: 'clamp(10px, 2vmin, 40px)',
                   }}
                 >
                   Where Code Meets Capitalism

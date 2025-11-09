@@ -1,24 +1,31 @@
 /* CODEOPOLY - Cyberpunk Game Styles */
 
-/* Base Theme Colors */
+/* Professional Theme Colors - YC Ready */
 :root {
-  --cyber-blue: #06B6D4;
-  --cyber-purple: #8B5CF6;
-  --cyber-green: #10B981;
-  --cyber-yellow: #FBBF24;
-  --cyber-red: #EF4444;
-  --cyber-bg: #000000;
-  --cyber-card: #0F172A;
-  --cyber-border: #334155;
+  --primary-cyan: #00D4FF;
+  --primary-blue: #3B82F6;
+  --primary-purple: #8B5CF6;
+  --accent-green: #10B981;
+  --accent-yellow: #F59E0B;
+  --accent-red: #EF4444;
+  --bg-primary: #0F172A;
+  --bg-secondary: #1E293B;
+  --bg-tertiary: #334155;
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  --border-subtle: rgba(255, 255, 255, 0.1);
+  --border-medium: rgba(255, 255, 255, 0.15);
+  --border-strong: rgba(255, 255, 255, 0.25);
 }
 
 /* Global Animations */
 @keyframes neon-pulse {
   0%, 100% {
-    box-shadow: 0 0 10px var(--cyber-blue), 0 0 20px var(--cyber-blue), 0 0 30px var(--cyber-blue);
+    box-shadow: 0 0 10px var(--primary-cyan), 0 0 20px var(--primary-cyan), 0 0 30px var(--primary-cyan);
   }
   50% {
-    box-shadow: 0 0 20px var(--cyber-blue), 0 0 40px var(--cyber-blue), 0 0 60px var(--cyber-blue);
+    box-shadow: 0 0 20px var(--primary-cyan), 0 0 40px var(--primary-cyan), 0 0 60px var(--primary-cyan);
   }
 }
 
@@ -79,36 +86,37 @@
 }
 
 /* Utility Classes */
-.cyber-glow {
-  box-shadow: 0 0 20px rgba(6, 182, 212, 0.4), 0 0 40px rgba(6, 182, 212, 0.2);
+.glow-cyan {
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.4), 0 0 40px rgba(0, 212, 255, 0.2);
 }
 
-.cyber-glow-purple {
+.glow-purple {
   box-shadow: 0 0 20px rgba(139, 92, 246, 0.4), 0 0 40px rgba(139, 92, 246, 0.2);
 }
 
-.cyber-glow-green {
+.glow-green {
   box-shadow: 0 0 20px rgba(16, 185, 129, 0.4), 0 0 40px rgba(16, 185, 129, 0.2);
 }
 
-.cyber-border {
-  border: 2px solid var(--cyber-blue);
-  box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+.border-glow {
+  border: 2px solid var(--primary-cyan);
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
 }
 
-.cyber-text-gradient {
-  background: linear-gradient(135deg, var(--cyber-blue), var(--cyber-purple), var(--cyber-green));
+.text-gradient {
+  background: linear-gradient(135deg, var(--primary-cyan), var(--primary-purple), var(--accent-green));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Board Styles */
+/* Board Styles - Professional & Clean */
 .game-board-container {
   position: relative;
-  background: linear-gradient(135deg, #000000 0%, #0F172A 50%, #000000 100%);
+  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-primary) 100%);
   border-radius: 1.5rem;
   overflow: visible;
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(0, 212, 255, 0.05);
 }
 
 .game-board-grid {
@@ -119,76 +127,89 @@
 .property-tile {
   position: relative;
   overflow: hidden;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 2px solid var(--border-subtle);
 }
 
 .property-tile:hover {
-  transform: scale(1.05);
+  transform: scale(1.02);
   z-index: 10;
+  border-color: var(--primary-cyan);
+  box-shadow: 0 0 25px rgba(0, 212, 255, 0.3);
 }
 
 .property-tile.selected {
   border-width: 3px;
-  box-shadow: 0 0 30px rgba(6, 182, 212, 0.6);
+  border-color: var(--primary-cyan);
+  box-shadow: 0 0 30px rgba(0, 212, 255, 0.6);
 }
 
-/* Player Panel Styles */
+/* Player Panel Styles - Clean & Modern */
 .player-panel {
-  background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
-  border: 2px solid var(--cyber-border);
+  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  border: 2px solid var(--border-medium);
   border-radius: 1rem;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .player-panel.active {
-  border-color: var(--cyber-green);
-  box-shadow: 0 0 40px rgba(16, 185, 129, 0.5);
+  border-color: var(--accent-green);
+  box-shadow: 0 0 40px rgba(16, 185, 129, 0.4), 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .money-display {
   font-family: 'Courier New', monospace;
-  text-shadow: 0 0 20px rgba(251, 191, 36, 0.6);
+  text-shadow: 0 0 15px rgba(245, 158, 11, 0.6);
+  color: var(--accent-yellow);
 }
 
-/* Modal Styles */
+/* Modal Styles - Professional Glassmorphism */
 .modal-overlay {
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(8px);
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(12px);
 }
 
 .modal-content {
-  background: #000000;
-  border: 2px solid var(--cyber-blue);
+  background: rgba(15, 23, 42, 0.9);
+  border: 2px solid var(--border-strong);
   border-radius: 1.5rem;
-  box-shadow: 0 0 60px rgba(6, 182, 212, 0.4), 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.6), 0 20px 60px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(0, 212, 255, 0.05);
+  backdrop-filter: blur(20px);
 }
 
-/* Editor Styles */
+/* Editor Styles - Clean & Accessible */
 .monaco-editor-container {
   border-radius: 0.75rem;
   overflow: hidden;
-  border: 2px solid var(--cyber-border);
+  border: 2px solid var(--border-medium);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
 }
 
-/* Button Styles */
-.btn-cyber {
-  background: linear-gradient(135deg, var(--cyber-blue), var(--cyber-purple));
+/* Button Styles - Modern & Accessible */
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary-cyan), var(--primary-blue));
   border: none;
-  border-radius: 0.5rem;
-  color: white;
+  border-radius: 0.75rem;
+  color: var(--text-primary);
   font-weight: 600;
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3);
 }
 
-.btn-cyber:hover {
+.btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 0 30px rgba(6, 182, 212, 0.5);
+  box-shadow: 0 6px 20px rgba(0, 212, 255, 0.4);
 }
 
-.btn-cyber::before {
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-primary::before {
   content: '';
   position: absolute;
   top: 0;
@@ -199,16 +220,26 @@
   transition: left 0.5s;
 }
 
-.btn-cyber:hover::before {
+.btn-primary:hover::before {
   left: 100%;
 }
 
 .btn-success {
-  background: linear-gradient(135deg, var(--cyber-green), #059669);
+  background: linear-gradient(135deg, var(--accent-green), #059669);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.btn-success:hover {
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
 }
 
 .btn-danger {
-  background: linear-gradient(135deg, var(--cyber-red), #DC2626);
+  background: linear-gradient(135deg, var(--accent-red), #DC2626);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:hover {
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
 }
 
 /* Dice Animation */
@@ -247,7 +278,7 @@
 /* Loading Spinner */
 .loading-spinner {
   border: 3px solid rgba(6, 182, 212, 0.3);
-  border-top: 3px solid var(--cyber-blue);
+  border-top: 3px solid var(--primary-cyan);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -298,7 +329,7 @@
 
 /* Focus Styles */
 *:focus-visible {
-  outline: 2px solid var(--cyber-blue);
+  outline: 2px solid var(--primary-cyan);
   outline-offset: 2px;
   border-radius: 0.25rem;
 }
@@ -310,24 +341,24 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #0F172A;
+  background: var(--bg-primary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--cyber-blue);
+  background: var(--primary-cyan);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--cyber-purple);
+  background: var(--primary-purple);
 }
 
 /* High Contrast Mode */
 @media (prefers-contrast: high) {
   :root {
-    --cyber-blue: #00D9FF;
-    --cyber-purple: #A78BFA;
-    --cyber-green: #34D399;
+    --primary-cyan: #00D9FF;
+    --primary-purple: #A78BFA;
+    --accent-green: #34D399;
   }
 }
 
@@ -341,4 +372,3 @@
     transition-duration: 0.01ms !important;
   }
 }
-

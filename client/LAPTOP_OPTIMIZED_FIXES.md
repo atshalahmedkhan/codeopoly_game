@@ -150,3 +150,5 @@ The new CSS file (`laptop-optimized.css`) overrides previous styles with:
 
 **Refresh your browser and enjoy the new, optimized experience!** 🚀
 
+
+

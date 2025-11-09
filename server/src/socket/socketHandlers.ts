@@ -10,17 +10,83 @@ function useMongoDB() {
   return mongoose.connection.readyState === 1;
 }
 
+function isValidObjectId(id: string): boolean {
+  return mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id);
+}
+
+async function getGameById(gameId: string) {
+  if (useMongoDB() && isValidObjectId(gameId)) {
+    return await Game.findById(gameId);
+  } else {
+    return findGameById(gameId);
+  }
+}
+
+async function endPlayerTurn(game: any, gameId: string, io: Server) {
+  if (!game || !game.players || game.players.length === 0) {
+    console.error('❌ Cannot end turn: Invalid game or no players');
+    return;
+  }
+
+  const currentIndex = game.players.findIndex((p: any) => p.id === game.currentTurn);
+  
+  if (currentIndex === -1) {
+    console.error(`❌ Cannot end turn: Current player ${game.currentTurn} not found in players list`);
+    return;
+  }
+
+  const nextIndex = (currentIndex + 1) % game.players.length;
+  const previousPlayer = game.players[currentIndex].name;
+  const nextPlayer = game.players[nextIndex].name;
+  
+  game.currentTurn = game.players[nextIndex].id;
+  game.turnNumber += 1;
+
+  if (useMongoDB()) {
+    await game.save();
+  } else {
+    updateGame(gameId, game);
+  }
+  console.log(`🔄 Turn switching: ${previousPlayer} → ${nextPlayer} (Turn #${game.turnNumber})`);
+
+  io.to(gameId).emit('turn-ended', {
+    nextPlayerId: game.currentTurn,
+    nextPlayerName: game.players[nextIndex].name,
+    turnNumber: game.turnNumber,
+  });
+  try {
+    if (useMongoDB()) {
+      await game.save();
+    } else {
+      updateGame(gameId, game);
+    }
+
+    io.to(gameId).emit('turn-ended', {
+      nextPlayerId: game.currentTurn,
+      nextPlayerName: game.players[nextIndex].name,
+      turnNumber: game.turnNumber,
+    });
+
+    // Broadcast updated game state to all players
+    const gameState = {
+      ...game.toObject ? game.toObject() : game,
+      boardState: game.boardState || [],
+      players: game.players || [],
+    };
+    io.to(gameId).emit('game-state', gameState);
+    console.log(`✅ Turn ended successfully, next player: ${nextPlayer}`);
+  } catch (error) {
+    console.error('❌ Error in endPlayerTurn:', error);
+    throw error;
+  }
+}
+
 export function setupSocketHandlers(io: Server, socket: Socket) {
   // Join game room
   socket.on('join-game', async ({ gameId, playerId }) => {
     try {
-      let game;
-      if (useMongoDB()) {
-        game = await Game.findById(gameId);
-      } else {
-        game = findGameById(gameId);
-      }
-      
+      const game = await getGameById(gameId);
+
       if (!game) {
         socket.emit('error', { message: 'Game not found' });
         return;
@@ -39,12 +105,24 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
 
       socket.join(gameId);
       socket.emit('joined-game', { gameId, playerId });
-      
-      // Notify other players
-      io.to(gameId).emit('player-joined', {
+
+      // Send current game state to the joining player
+      const gameState = {
+        ...game.toObject ? game.toObject() : game,
+        boardState: game.boardState || [],
+        players: game.players || [],
+      };
+      socket.emit('game-state', gameState);
+
+      // Notify other players and broadcast updated game state to all
+      socket.to(gameId).emit('player-joined', {
         playerId,
         playerName: player?.name,
+        playerAvatar: player?.avatar,
       });
+
+      // Broadcast updated game state to all players in the room
+      io.to(gameId).emit('game-state', gameState);
     } catch (error) {
       console.error('Error joining game:', error);
       socket.emit('error', { message: 'Failed to join game' });
@@ -54,13 +132,8 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
   // Roll dice
   socket.on('roll-dice', async ({ gameId, playerId }) => {
     try {
-      let game;
-      if (useMongoDB()) {
-        game = await Game.findById(gameId);
-      } else {
-        game = findGameById(gameId);
-      }
-      
+      const game = await getGameById(gameId);
+
       if (!game || game.currentTurn !== playerId) {
         socket.emit('error', { message: 'Not your turn' });
         return;
@@ -79,7 +152,7 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       // Move player
       const newPosition = (player.position + total) % 40;
       const passedGo = player.position + total >= 40;
-      
+
       player.position = newPosition;
       if (passedGo) {
         player.money += 200; // Pass Go, collect $200
@@ -120,7 +193,9 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
             property: property.name,
           });
         } else {
-          socket.emit('landed-on-space', {
+          // Broadcast to all players so they can see what space was landed on
+          io.to(gameId).emit('landed-on-space', {
+            playerId,
             property,
             canBuy: !property.ownerId && property.price > 0,
             mustPayRent: property.ownerId && property.ownerId !== playerId,
@@ -136,13 +211,8 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
   // Buy property
   socket.on('buy-property', async ({ gameId, playerId, propertyId, code, language }) => {
     try {
-      let game;
-      if (useMongoDB()) {
-        game = await Game.findById(gameId);
-      } else {
-        game = findGameById(gameId);
-      }
-      
+      const game = await getGameById(gameId);
+
       if (!game) {
         socket.emit('error', { message: 'Game not found' });
         return;
@@ -163,7 +233,7 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       // Get problem for this property - use in-memory problem bank
       // For now, accept the code if it was validated client-side
       // In production, you'd validate server-side too
-      
+
       // Property purchase successful - Automated Solution Upgrade
       property.ownerId = playerId;
       property.houses = 1; // First solution automatically added
@@ -186,6 +256,15 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
         propertyId,
         propertyName: property.name,
       });
+
+      // Automatically end turn after buying property
+      await endPlayerTurn(game, gameId, io);
+      console.log(`💰 Property bought by ${playerName}, ending turn...`);
+      try {
+        await endPlayerTurn(game, gameId, io);
+      } catch (turnError) {
+        console.error('Error ending turn after property purchase:', turnError);
+      }
     } catch (error) {
       console.error('Error buying property:', error);
       socket.emit('error', { message: 'Failed to buy property' });
@@ -195,13 +274,8 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
   // Challenge to code duel
   socket.on('challenge-duel', async ({ gameId, challengerId, defenderId, propertyId }) => {
     try {
-      let game;
-      if (useMongoDB()) {
-        game = await Game.findById(gameId);
-      } else {
-        game = findGameById(gameId);
-      }
-      
+      const game = await getGameById(gameId);
+
       if (!game) {
         socket.emit('error', { message: 'Game not found' });
         return;
@@ -260,13 +334,8 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
   // Submit code in duel
   socket.on('submit-duel-code', async ({ gameId, playerId, code, language }) => {
     try {
-      let game;
-      if (useMongoDB()) {
-        game = await Game.findById(gameId);
-      } else {
-        game = findGameById(gameId);
-      }
-      
+      const game = await getGameById(gameId);
+
       if (!game || !game.activeDuel) {
         socket.emit('error', { message: 'No active duel' });
         return;
@@ -285,7 +354,7 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
       const solvedKey = isChallenger ? 'challengerSolved' : 'defenderSolved';
       game.activeDuel[solvedKey] = true;
       game.activeDuel[isChallenger ? 'challengerTime' : 'defenderTime'] = Date.now() - new Date(game.activeDuel.startTime).getTime();
-      
+
       // Check if duel is over
       const challengerSolved = isChallenger || game.activeDuel.challengerSolved;
       const defenderSolved = isDefender || game.activeDuel.defenderSolved;
@@ -294,7 +363,7 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
         // Both solved - faster wins
         const challengerTime = game.activeDuel.challengerTime || Infinity;
         const defenderTime = game.activeDuel.defenderTime || Infinity;
-        
+
         if (challengerTime < defenderTime) {
           game.activeDuel.status = 'challenger-won';
         } else {
@@ -331,36 +400,17 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
     }
   });
 
-  // End turn
+  // End turn (for manual turn ending or skipping)
   socket.on('end-turn', async ({ gameId, playerId }) => {
     try {
-      let game;
-      if (useMongoDB()) {
-        game = await Game.findById(gameId);
-      } else {
-        game = findGameById(gameId);
-      }
-      
+      const game = await getGameById(gameId);
+
       if (!game || game.currentTurn !== playerId) {
         socket.emit('error', { message: 'Not your turn' });
         return;
       }
 
-      const currentIndex = game.players.findIndex((p: any) => p.id === playerId);
-      const nextIndex = (currentIndex + 1) % game.players.length;
-      game.currentTurn = game.players[nextIndex].id;
-      game.turnNumber += 1;
-
-      if (useMongoDB()) {
-        await game.save();
-      } else {
-        updateGame(gameId, game);
-      }
-
-      io.to(gameId).emit('turn-ended', {
-        nextPlayerId: game.currentTurn,
-        turnNumber: game.turnNumber,
-      });
+      await endPlayerTurn(game, gameId, io);
     } catch (error) {
       console.error('Error ending turn:', error);
       socket.emit('error', { message: 'Failed to end turn' });
@@ -370,13 +420,8 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
   // Pay rent
   socket.on('pay-rent', async ({ gameId, playerId, propertyId }) => {
     try {
-      let game;
-      if (useMongoDB()) {
-        game = await Game.findById(gameId);
-      } else {
-        game = findGameById(gameId);
-      }
-      
+      const game = await getGameById(gameId);
+
       if (!game) {
         socket.emit('error', { message: 'Game not found' });
         return;
@@ -407,6 +452,15 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
         propertyId,
         amount: rent,
       });
+
+      // Automatically end turn after paying rent
+      await endPlayerTurn(game, gameId, io);
+      console.log(`💸 Rent paid by ${player.name}, ending turn...`);
+      try {
+        await endPlayerTurn(game, gameId, io);
+      } catch (turnError) {
+        console.error('Error ending turn after rent payment:', turnError);
+      }
     } catch (error) {
       console.error('Error paying rent:', error);
       socket.emit('error', { message: 'Failed to pay rent' });
@@ -416,13 +470,8 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
   // Upgrade property
   socket.on('upgrade-property', async ({ gameId, playerId, propertyId }) => {
     try {
-      let game;
-      if (useMongoDB()) {
-        game = await Game.findById(gameId);
-      } else {
-        game = findGameById(gameId);
-      }
-      
+      const game = await getGameById(gameId);
+
       if (!game) {
         socket.emit('error', { message: 'Game not found' });
         return;
@@ -470,17 +519,12 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
   // Game time up
   socket.on('game-time-up', async ({ gameId }) => {
     try {
-      let game;
-      if (useMongoDB()) {
-        game = await Game.findById(gameId);
-      } else {
-        game = findGameById(gameId);
-      }
-      
+      const game = await getGameById(gameId);
+
       if (!game) return;
 
       game.status = 'finished';
-      
+
       if (useMongoDB()) {
         await game.save();
       } else {
@@ -496,13 +540,8 @@ export function setupSocketHandlers(io: Server, socket: Socket) {
   // Get game state
   socket.on('get-game-state', async ({ gameId }) => {
     try {
-      let game;
-      if (useMongoDB()) {
-        game = await Game.findById(gameId);
-      } else {
-        game = findGameById(gameId);
-      }
-      
+      const game = await getGameById(gameId);
+
       if (!game) {
         socket.emit('error', { message: 'Game not found' });
         return;
@@ -542,7 +581,7 @@ async function handleDuelEnd(game: any, io: Server) {
   }
 
   game.activeDuel = undefined;
-  
+
   if (useMongoDB()) {
     await game.save();
   } else {
@@ -566,7 +605,7 @@ function applyCardEffect(game: any, player: any, card: DebuggingCard, io: Server
       });
     }
   }
-  
+
   if (card.effect.move) {
     const newPosition = (player.position + card.effect.move + 40) % 40;
     player.position = newPosition;
@@ -576,7 +615,7 @@ function applyCardEffect(game: any, player: any, card: DebuggingCard, io: Server
       newPosition,
     });
   }
-  
+
   if (useMongoDB()) {
     game.save();
   } else {
@@ -587,7 +626,7 @@ function applyCardEffect(game: any, player: any, card: DebuggingCard, io: Server
 function calculateRent(property: any): number {
   const baseRent = property.rent || 0;
   const numSolutions = property.houses || 0;
-  
+
   // Determine difficulty multiplier based on property price/category
   let difficultyMultiplier = 1.0; // Easy (default)
   if (property.price > 200) {
@@ -595,10 +634,10 @@ function calculateRent(property: any): number {
   } else if (property.price > 100) {
     difficultyMultiplier = 1.5; // Medium
   }
-  
+
   // Dynamic rent formula: Base Rent × (1 + (Number of Solutions × Difficulty Multiplier))
   const rent = baseRent * (1 + (numSolutions * difficultyMultiplier));
-  
+
   // Fallback to original calculation if houses array exists
   if (property.rentWithHouse && property.rentWithHouse.length > 0) {
     if (numSolutions === 0) {
@@ -609,7 +648,6 @@ function calculateRent(property: any): number {
       return property.rentWithHouse[numSolutions - 1] || rent;
     }
   }
-  
+
   return Math.round(rent);
 }
-
