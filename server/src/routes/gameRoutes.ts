@@ -340,6 +340,7 @@ router.post('/games/join', async (req, res) => {
       properties: [],
       inJail: false,
       jailTurns: 0,
+      isActive: true,
     };
 
     game.players.push(newPlayer);

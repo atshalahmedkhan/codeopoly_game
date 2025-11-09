@@ -86,6 +86,31 @@ A Monopoly-inspired coding game that combines property trading with LeetCode-sty
    - Winner = highest net worth (cash + properties + challenges)
    - Special awards: Best Coder, Tech Mogul, Top Investor
 
+## 🎲 Game Logic & Turn Sequence
+
+### Turn Sequence
+The game follows a strict turn sequence to ensure consistent gameplay:
+
+1. **Roll Dice**: Player rolls two six-sided dice (Monopoly-style)
+2. **Move Player**: Player token moves on the board
+3. **Movement Event**: `codeopoly:playerMoved` event is emitted (for animations)
+4. **Landing Event**: `codeopoly:landed` event is emitted
+5. **Resolve Action**: Handle tile-specific actions (property purchase, rent payment, special tiles)
+
+### Rent Calculation
+Rent is calculated with the following precedence:
+1. **Structured Rent** (if available):
+   - 0 houses: base rent
+   - 1-4 houses: `rentWithHouse[houses-1]`
+   - 5 houses (hotel): `rentWithHotel`
+2. **Fallback**: 20% of property price if structured rent data is missing
+
+### Bankruptcy Handling
+- Money is clamped to a minimum of 0 (no negative balances)
+- Players are marked as inactive when money ≤ 0
+- Bankrupt players remain on the board but cannot take actions
+- Properties remain owned by bankrupt players (future enhancement: property transfer)
+
 ## 🏗️ Architecture
 
 ### Frontend (`client/`)
