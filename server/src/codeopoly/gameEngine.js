@@ -7,6 +7,7 @@ import { createPlayer } from './players.js';
 import { createBoard, TILE_TYPES } from './tiles.js';
 import { simulateChallenge } from './challenges.js';
 import { EventEmitter } from 'events';
+import { calculateRentServer, getChallengeRewardServer } from './gameLogicAdapter.js';
 
 class GameEngine extends EventEmitter {
   constructor(playerNames = ['Alice', 'Bob', 'Charlie', 'David']) {
@@ -129,8 +130,7 @@ class GameEngine extends EventEmitter {
         const success = simulateChallenge(property.difficulty);
         
         if (success) {
-          const reward = property.difficulty === 'easy' ? 200 : 
-                        property.difficulty === 'medium' ? 400 : 700;
+          const reward = getChallengeRewardServer(property.difficulty);
           
           this.log(`✅ ${player.name} solved the challenge successfully!`);
           this.transferOwnership(property, player);
@@ -147,9 +147,9 @@ class GameEngine extends EventEmitter {
       }
       
     } else if (property.owner !== player.id) {
-      // Owned by another player - pay rent
+      // Owned by another player - pay rent using unified calculation
       const owner = this.players.find(p => p.id === property.owner);
-      const rent = Math.floor(property.price * 0.2);
+      const rent = calculateRentServer(property);
       
       this.log(`🏠 ${property.name} is owned by ${owner.name}`);
       this.updateCash(player, -rent);
