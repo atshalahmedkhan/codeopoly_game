@@ -38,7 +38,10 @@ class GameEngine extends EventEmitter {
   }
 
   rollDice() {
-    return Math.floor(Math.random() * 6) + 1;
+    // Roll two dice (Monopoly-style)
+    const dice1 = Math.floor(Math.random() * 6) + 1;
+    const dice2 = Math.floor(Math.random() * 6) + 1;
+    return dice1 + dice2;
   }
 
   movePlayer(player, steps) {
@@ -59,14 +62,20 @@ class GameEngine extends EventEmitter {
 
   updateCash(player, amount) {
     player.cash += amount;
+    
+    // Clamp money/cash to 0 minimum
+    if (player.cash < 0) {
+      player.cash = 0;
+    }
+    
     if (amount > 0) {
       this.log(`💵 ${player.name} gained $${amount} (Balance: $${player.cash})`);
     } else {
       this.log(`💸 ${player.name} lost $${Math.abs(amount)} (Balance: $${player.cash})`);
     }
     
-    // Check for bankruptcy
-    if (player.cash < 0) {
+    // Check for bankruptcy - mark inactive when balance is 0 or would go negative
+    if (player.cash <= 0) {
       player.active = false;
       this.log(`🚫 ${player.name} is BANKRUPT and out of the game!`);
     }
@@ -149,7 +158,23 @@ class GameEngine extends EventEmitter {
     } else if (property.owner !== player.id) {
       // Owned by another player - pay rent
       const owner = this.players.find(p => p.id === property.owner);
-      const rent = Math.floor(property.price * 0.2);
+      
+      // Use safe rent calculation with fallback
+      let rent = 0;
+      const numHouses = property.houses || 0;
+      
+      if (Array.isArray(property.rentWithHouse) && property.rentWithHouse.length > 0) {
+        if (numHouses === 0) {
+          rent = property.rent || 0;
+        } else if (numHouses >= 5) {
+          rent = property.rentWithHotel || (property.rent || 0);
+        } else if (numHouses >= 1 && numHouses <= 4) {
+          rent = property.rentWithHouse[numHouses - 1] || (property.rent || 0);
+        }
+      } else {
+        // Fallback: 20% of property price
+        rent = Math.floor(property.price * 0.2);
+      }
       
       this.log(`🏠 ${property.name} is owned by ${owner.name}`);
       this.updateCash(player, -rent);

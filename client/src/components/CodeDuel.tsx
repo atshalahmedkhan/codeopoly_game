@@ -12,7 +12,7 @@ interface CodeDuelProps {
 
 export default function CodeDuel({ duel, problem, currentPlayerId, socket, gameId }: CodeDuelProps) {
   const [code, setCode] = useState(problem?.functionSignatures?.javascript || '');
-  const [language, setLanguage] = useState('javascript');
+  const [language, _setLanguage] = useState('javascript');
   const [timeRemaining, setTimeRemaining] = useState(300);
   const [opponentCode, setOpponentCode] = useState('');
   const [status, setStatus] = useState<'active' | 'won' | 'lost'>('active');

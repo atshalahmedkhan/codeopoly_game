@@ -124,7 +124,7 @@ export interface IProperty {
   isRailroad?: boolean;
   isUtility?: boolean;
   isSpecial?: boolean;
-  specialType?: 'go' | 'jail' | 'free-parking' | 'go-to-jail' | 'chance' | 'community-chest';
+  specialType?: 'go' | 'jail' | 'free-parking' | 'go-to-jail' | 'chance' | 'community-chest' | 'tax';
 }
 
 export interface IPlayer {
@@ -136,6 +136,7 @@ export interface IPlayer {
   properties: string[]; // Property IDs
   inJail: boolean;
   jailTurns: number;
+  isActive: boolean; // Track if player is still in game (not bankrupt)
   socketId?: string;
 }
 
@@ -246,7 +247,7 @@ const PropertySchema = new Schema<IProperty>({
   },
   specialType: { 
     type: String,
-    enum: ['go', 'jail', 'free-parking', 'go-to-jail', 'chance', 'community-chest', null],
+    enum: ['go', 'jail', 'free-parking', 'go-to-jail', 'chance', 'community-chest', 'tax', null],
     default: null,
   },
 }, { _id: false }); // Don't create _id for subdocuments
@@ -299,6 +300,10 @@ const PlayerSchema = new Schema<IPlayer>({
     default: 0,
     min: 0,
     max: 3, // Max 3 turns in jail
+  },
+  isActive: {
+    type: Boolean,
+    default: true, // Players start as active
   },
   socketId: {
     type: String,

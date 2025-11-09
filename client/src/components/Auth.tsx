@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { signInWithPopup, signOut, User } from 'firebase/auth';
+import { signInWithPopup, User } from 'firebase/auth';
 import { auth, googleProvider, outlookProvider } from '../lib/firebase';
 
 interface AuthProps {

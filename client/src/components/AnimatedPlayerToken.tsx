@@ -18,7 +18,7 @@ export default function AnimatedPlayerToken({
   player,
   isCurrentTurn,
   isMoving = false,
-  previousPosition,
+  previousPosition: _previousPosition,
 }: AnimatedPlayerTokenProps) {
   const [trail, setTrail] = useState<{ x: number; y: number; id: number }[]>([]);
   const tokenRef = useRef<HTMLDivElement>(null);
@@ -57,7 +57,7 @@ export default function AnimatedPlayerToken({
     <>
       {/* Trail effect */}
       <AnimatePresence>
-        {trail.map((point, index) => (
+        {trail.map((point, _index) => (
           <motion.div
             key={point.id}
             className="fixed pointer-events-none"
